@@ -1,0 +1,34 @@
+llm_max_retries: 3
+llm_retry_sleep: 1.5
+llm_request_timeout: 600.0
+llm_error_body_limit: 500
+
+text_num_ctx: 16384
+text_num_predict: 4096
+vision_num_ctx: 8192
+vision_num_predict: 2048
+
+vision_max_image_side: 1024
+vision_jpeg_quality: 85
+
+whisper_language: ru
+whisper_beam_size: 1
+whisper_vad_filter: true
+whisper_progress_every: 50
+
+clean_chunk_size: 7000
+format_chunk_size: 10000
+min_text_chars_per_page: 200
+
+max_input_chars: 120000
+presentation_render_scale: 2.0
+
+health_max_errors: 64
+health_max_warnings: 64
+
+assets_download_timeout: 120.0
+assets_error_body_limit: 800
+
+min_python_version:
+  - 3
+  - 11

@@ -1,0 +1,9 @@
+text_model: gemma4:e4b
+vision_model: glm-ocr
+whisper_model: large-v3
+whisper_device: auto
+
+text_num_ctx: 16384
+text_num_predict: 4096
+vision_num_ctx: 8192
+vision_num_predict: 2048
