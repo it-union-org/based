@@ -49,6 +49,12 @@ class TasksAPI:
     def mark_cancelled(self, user_id: str, task_number: int) -> None:
         self.db.mark_cancelled(user_id, task_number)
 
+    def mark_pending(self, user_id: str, task_number: int) -> None:
+        self.db.mark_pending(user_id, task_number)
+
+    def hard_delete(self, user_id: str, task_number: int) -> int:
+        return self.db.hard_delete(user_id, task_number)
+
     def cancel_for_lesson(self, user_id: str, subject: str, lesson_date: str) -> int:
         return self.db.cancel_tasks_for_lesson(user_id, subject, lesson_date)
 

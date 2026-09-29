@@ -98,6 +98,8 @@ def health_check(label: str) -> Callable:
                 state.report_error(f"{label}: {stage.error}")
                 state.status = HealthStatus.IDLE
                 state.current = None
+                from based.utils.__console import log_err
+                log_err(f"{label} raised: {stage.error}")
                 return None
             stage.finished = time.monotonic()
             if result is None:

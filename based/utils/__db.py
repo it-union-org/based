@@ -89,9 +89,9 @@ def _rows(rows: list[sqlite3.Row]) -> list[dict]:
 
 class BasedDB:
     def __init__(self, path: Path | None = None) -> None:
-        self.__path = path or config.db_path
-        self.__path.parent.mkdir(parents=True, exist_ok=True)
-        self.__conn = sqlite3.connect(str(self.__path), check_same_thread=False)
+        self.__path__ = path or config.db_path
+        self.__path__.parent.mkdir(parents=True, exist_ok=True)
+        self.__conn = sqlite3.connect(str(self.__path__), check_same_thread=False)
         self.__conn.row_factory = sqlite3.Row
         self.__conn.execute("PRAGMA foreign_keys = ON")
         self.__conn.executescript(SCHEMA)
@@ -152,33 +152,61 @@ class BasedDB:
             (group_name, from_date, to_date),
         ).fetchone()
         schedule_id = row["id"]
+        from based.utils.__console import log_step, log_err
+
         self.__conn.execute("DELETE FROM lessons WHERE schedule_id = ?", (schedule_id,))
-        for lesson in lessons:
-            self.__conn.execute(
-                """
-                INSERT INTO lessons (
-                    id, schedule_id, group_name, subject, teacher, room, address,
-                    date, start_time, end_time, lesson_type, raw_type, subgroup, link
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    lesson["id"],
-                    schedule_id,
-                    group_name,
-                    lesson["subject"],
-                    lesson.get("teacher"),
-                    lesson.get("room"),
-                    lesson.get("address"),
-                    lesson["date"],
-                    lesson["start_time"],
-                    lesson["end_time"],
-                    lesson.get("lesson_type"),
-                    lesson.get("raw_type"),
-                    lesson.get("subgroup"),
-                    lesson.get("link"),
-                ),
-            )
+        log_step(f"db.upsert_schedule: schedule_id={schedule_id}, lessons_to_insert={len(lessons)}")
+
+        seen_ids: dict[str, int] = {}
+        inserted = 0
+        for index, lesson in enumerate(lessons):
+            base_id = str(lesson.get("id") or "").strip() or f"{lesson['date']}_{lesson['start_time']}_{lesson['subject']}"
+            count = seen_ids.get(base_id, 0)
+            seen_ids[base_id] = count + 1
+            lesson_id = base_id if count == 0 else f"{base_id}#{count}"
+            try:
+                self.__conn.execute(
+                    """
+                    INSERT OR REPLACE INTO lessons (
+                        id, schedule_id, group_name, subject, teacher, room, address,
+                        date, start_time, end_time, lesson_type, raw_type, subgroup, link
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        lesson_id,
+                        schedule_id,
+                        group_name,
+                        lesson["subject"],
+                        lesson.get("teacher"),
+                        lesson.get("room"),
+                        lesson.get("address"),
+                        lesson["date"],
+                        lesson["start_time"],
+                        lesson["end_time"],
+                        lesson.get("lesson_type"),
+                        lesson.get("raw_type"),
+                        lesson.get("subgroup"),
+                        lesson.get("link"),
+                    ),
+                )
+                inserted += 1
+            except Exception as exc:
+                log_err(
+                    f"db.upsert_schedule: lesson {index} failed "
+                    f"id={lesson_id!r} date={lesson.get('date')!r} "
+                    f"start={lesson.get('start_time')!r} "
+                    f"error={exc.__class__.__name__}: {exc}"
+                )
+                raise
+
+        log_step(f"db.upsert_schedule: inserted {inserted} rows, committing")
         self.__conn.commit()
+
+        check = self.__conn.execute(
+            "SELECT COUNT(*) AS n FROM lessons WHERE schedule_id = ?",
+            (schedule_id,),
+        ).fetchone()
+        log_step(f"db.upsert_schedule: after commit, lessons with schedule_id={schedule_id}: {check['n']}")
         return schedule_id
 
     def get_lessons(self, group_name: str, date: str) -> list[dict]:
@@ -196,6 +224,27 @@ class BasedDB:
                 (group_name, from_date, to_date),
             ).fetchall()
         )
+
+
+    def get_lessons_all(self, date: str) -> list[dict]:
+        return _rows(
+            self.__conn.execute(
+                "SELECT * FROM lessons WHERE date = ? ORDER BY start_time",
+                (date,),
+            ).fetchall()
+        )
+
+    def get_lessons_range_all(self, from_date: str, to_date: str) -> list[dict]:
+        return _rows(
+            self.__conn.execute(
+                "SELECT * FROM lessons WHERE date BETWEEN ? AND ? ORDER BY date, start_time",
+                (from_date, to_date),
+            ).fetchall()
+        )
+
+    def min_lesson_date_all(self) -> str | None:
+        row = self.__conn.execute("SELECT MIN(date) AS d FROM lessons").fetchone()
+        return row["d"] if row and row["d"] else None
 
     def get_upcoming_for_group(self, group_name: str, minutes: int = 5) -> list[dict]:
         now = datetime.now()
@@ -271,6 +320,28 @@ class BasedDB:
             ).fetchall()
         )
 
+    def mark_pending(self, user_id: str, task_number: int) -> None:
+        self.__conn.execute(
+            "UPDATE tasks SET status = 'pending', completed_at = NULL WHERE user_id = ? AND task_number = ?",
+            (user_id, task_number),
+        )
+        self.__conn.commit()
+
+    def hard_delete(self, user_id: str, task_number: int) -> int:
+        cursor = self.__conn.execute(
+            "DELETE FROM tasks WHERE user_id = ? AND task_number = ?",
+            (user_id, task_number),
+        )
+        self.__conn.commit()
+        return cursor.rowcount
+
+    def min_lesson_date(self, group_name: str) -> str | None:
+        row = self.__conn.execute(
+            "SELECT MIN(date) AS d FROM lessons WHERE group_name = ?",
+            (group_name,),
+        ).fetchone()
+        return row["d"] if row and row["d"] else None
+
     def mark_done(self, user_id: str, task_number: int) -> None:
         self.__conn.execute(
             "UPDATE tasks SET status = 'done', completed_at = ? WHERE user_id = ? AND task_number = ?",
@@ -308,9 +379,9 @@ class BasedDB:
         self.__conn.commit()
         return cursor.rowcount
 
-    def delete_lessons_started_before(self, hhmm: str, date: str) -> int:
+    def delete_past_lessons(self, hhmm: str, date: str) -> int:
         cursor = self.__conn.execute(
-            "DELETE FROM lessons WHERE date = ? AND start_time <= ?",
+            "DELETE FROM lessons WHERE date = ? AND end_time <= ?",
             (date, hhmm),
         )
         self.__conn.commit()

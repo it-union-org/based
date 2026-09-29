@@ -24,8 +24,8 @@ def register(subparsers) -> None:
     one.add_argument("module")
     one.set_defaults(func=run_module)
 
-    all_ = sub.add_parser("all", help="run all module tests")
-    all_.set_defaults(func=run_all)
+    __all__ = sub.add_parser("all", help="run all module tests")
+    __all__.set_defaults(func=run_all)
 
 
 def _run_script(module: str) -> bool:

@@ -1,0 +1,8 @@
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cuda-nvrtc-cu12==12.9.86
+nvidia-cudnn-cu12==9.26.0.51
+pdfplumber==0.11.10
+pypdfium2==5.13.0
+python-pptx==1.0.2

@@ -43,6 +43,12 @@ class SkedsAPI:
     def get_range(self, group_name: str, from_date: str, to_date: str) -> list[dict]:
         return self.db.get_lessons_range(group_name, from_date, to_date)
 
+    def get_day_all(self, date: str) -> list[dict]:
+        return self.db.get_lessons_all(date)
+
+    def get_range_all(self, from_date: str, to_date: str) -> list[dict]:
+        return self.db.get_lessons_range_all(from_date, to_date)
+
     def health_check(self) -> dict:
         if self.__pipeline.health.status == HealthStatus.RUNNING:
             return self.__pipeline.health.snapshot()

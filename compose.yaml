@@ -1,0 +1,58 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: based-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: based-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama pull gemma4:e4b &&
+       ollama pull glm-ocr &&
+       echo 'models ready'"
+    restart: "no"
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: based-bot
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - OLLAMA_HOST=http://ollama:11434
+      - BOT_CACHE_DIR=/data/bot
+      - BASED_CACHE_DIR=/data/based
+      - ASSETS_BASE_URL=${ASSETS_BASE_URL:-https://github.com/it-union-org/assets/releases/download}
+      - ASSETS_VERSION=${ASSETS_VERSION:-v1.0.0}
+    volumes:
+      - bot_cache:/data/bot
+      - based_cache:/data/based
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+  bot_cache:
+  based_cache:

@@ -19,6 +19,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+bot = [
+    "maxapi==1.2.2",
+]
 notes = [
     "faster-whisper>=1.0",
     "ctranslate2>=4.4",
@@ -39,10 +42,11 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
 based = "based.cli.__main__:main"
+based-bot = "bot.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["based*"]
+include = ["based*", "bot*"]
 
 [tool.setuptools.package-data]
 based = ["config/*.yaml", "config/.env.example"]

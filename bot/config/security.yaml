@@ -1,0 +1,46 @@
+allowed_extensions:
+  - .mp3
+  - .m4a
+  - .wav
+  - .ogg
+  - .opus
+  - .flac
+  - .aac
+  - .jpg
+  - .jpeg
+  - .png
+  - .webp
+  - .bmp
+  - .heic
+  - .pdf
+  - .pptx
+  - .ppt
+  - .xlsx
+  - .xls
+  - .docx
+  - .doc
+  - .csv
+  - .tsv
+  - .txt
+  - .md
+  - .rtf
+  - .ics
+  - .json
+
+blocked_extensions:
+  - .exe
+  - .bat
+  - .cmd
+  - .sh
+  - .ps1
+  - .py
+  - .dll
+  - .so
+  - .dylib
+  - .bin
+  - .com
+  - .msi
+  - .scr
+  - .vbs
+  - .jar
+  - .app

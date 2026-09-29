@@ -1,0 +1,20 @@
+limits:
+  max_file_size_mb: 200
+  max_total_size_mb: 1000
+  max_files_per_session: 30
+  max_text_length: 10000
+
+session:
+  timeout_minutes: 60
+  schedule_upload_timeout_seconds: 60
+
+rate_limit:
+  per_minute: 60
+  per_hour: 300
+  ban_seconds: 30
+
+reminders:
+  tick_seconds: 10
+
+cache:
+  dir: ~/.cache/based-bot

@@ -15,7 +15,7 @@ from based.config import config
 from based.modules.skeds.extractors import extract
 from based.modules.skeds.schemas import Schedule, ScheduleRequest
 from based.modules.skeds.settings import SkedsSettings
-from based.utils.__console import log_err, log_warn
+from based.utils.__console import log_err, log_ok, log_step, log_warn
 from based.utils.__db import BasedDB
 from based.utils.__health import HealthState, health_check
 from based.utils.__llm import ask_text, ask_vision, last_error
@@ -99,32 +99,75 @@ class Pipeline:
                     await self.__progress(progress_cb, "Сохраняю в базу...")
                     self.__save(schedule, request.source)
                     return schedule
-                log_warn(f"skeds: attempt {attempt}: invalid json or schema")
+                log_warn(f"skeds: attempt {attempt}/{self.settings.max_retries}: invalid json or schema")
 
             self.health.report_error("failed to parse schedule")
             return log_err("skeds: failed to parse schedule")
 
     def __parse_response(self, raw: str, request: ScheduleRequest) -> Schedule | None:
+        from based.utils.__console import log_err, log_step, log_warn
+
         text = raw.strip()
+        log_step(f"skeds: response length={len(text)} chars, first 200: {text[:200]!r}")
+
         if text.startswith("```"):
             lines = text.splitlines()[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             text = "\n".join(lines)
+            log_step("skeds: stripped code fences")
+
         try:
             payload = json.loads(text)
-            if request.group_name:
-                payload["group_name"] = request.group_name
-            return Schedule.model_validate(payload)
-        except Exception:
+        except json.JSONDecodeError as err:
+            log_err(f"skeds: json decode failed: {err}")
+            log_err(f"skeds: raw text around error: {text[max(0, err.pos-80):err.pos+80]!r}")
             return None
 
+        log_step(f"skeds: json parsed, top keys={list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__}")
+
+        if request.group_name:
+            payload["group_name"] = request.group_name
+
+        try:
+            schedule = Schedule.model_validate(payload)
+        except Exception as err:
+            log_err(f"skeds: schema validation failed: {err.__class__.__name__}: {err}")
+            return None
+
+        log_ok(f"skeds: schedule ok, lessons={len(schedule.lessons)}")
+        return schedule
+
     def __save(self, schedule: Schedule, source: Path) -> None:
+        from based.utils.__console import log_step, log_err
+
+        log_step(f"skeds __save: group={schedule.group_name!r} "
+                 f"from={schedule.from_date!r} to={schedule.to_date!r} "
+                 f"lessons={len(schedule.lessons)}")
+
         self.db.upsert_group(schedule.group_name, tenant=None, source=str(source))
-        self.db.upsert_schedule(
-            schedule.group_name,
-            schedule.from_date,
-            schedule.to_date,
-            str(source),
-            [lesson.model_dump() for lesson in schedule.lessons],
-        )
+
+        dumps = []
+        for i, lesson in enumerate(schedule.lessons):
+            try:
+                d = lesson.model_dump()
+                dumps.append(d)
+            except Exception as err:
+                log_err(f"lesson {i} model_dump failed: {err.__class__.__name__}: {err}")
+                raise
+
+        log_step(f"skeds __save: dumps={len(dumps)} keys={list(dumps[0].keys()) if dumps else 'empty'}")
+
+        try:
+            sid = self.db.upsert_schedule(
+                schedule.group_name,
+                schedule.from_date,
+                schedule.to_date,
+                str(source),
+                dumps,
+            )
+        except Exception as err:
+            log_err(f"upsert_schedule failed: {err.__class__.__name__}: {err}")
+            raise
+
+        log_step(f"skeds __save: schedule_id={sid}")
