@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from maxapi.types import Command, MessageCallback, MessageCreated
+from maxapi.types import Command, MessageCallback, MessageCreated, BotStarted
 
 from based.utils.__console import log_step
 
@@ -60,6 +60,16 @@ def register(dp) -> None:
             await __menu.show_root(event)
         except Exception as err:
             await report(event, "start", err)
+
+    @dp.bot_started()
+    async def on_bot_started(event: BotStarted) -> None:
+        log_step(f"[bot] user={extract_user(event)} action=bot_started")
+        save_chat_id(event)
+        reset_session_state(extract_user(event))
+        try:
+            await __menu.show_root(event)
+        except Exception as err:
+            await report(event, "bot_started", err)
 
     @dp.message_created(Command("help"))
     async def help_command(event: MessageCreated) -> None:
